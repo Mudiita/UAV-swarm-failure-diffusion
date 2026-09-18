@@ -1,0 +1,20 @@
+# virtual environment
+venv/
+env/
+
+# python cache
+__pycache__/
+*.pyc
+
+# generated dataset (regenerate with: python data/generate_dataset.py)
+data/*.npz
+
+# trained model checkpoints + eval outputs (regenerate with train.py / evaluate.py)
+results/*.pt
+results/*.json
+
+# generated graphs (regenerate with: python plot_results.py)
+plots/*.png
+
+# OS-specific
+.DS_Store
