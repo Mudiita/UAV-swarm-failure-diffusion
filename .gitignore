@@ -9,12 +9,16 @@ __pycache__/
 # generated dataset (regenerate with: python data/generate_dataset.py)
 data/*.npz
 
-# trained model checkpoints + eval outputs (regenerate with train.py / evaluate.py)
+# trained model checkpoints + eval outputs (regenerate with train.py / evaluate.py / report_per_combo.py)
 results/*.pt
 results/*.json
+results/*.csv
 
 # generated graphs (regenerate with: python plot_results.py)
 plots/*.png
 
 # OS-specific
 .DS_Store
+
+# Claude Code local state (includes leftover worktrees with their own .git)
+.claude/

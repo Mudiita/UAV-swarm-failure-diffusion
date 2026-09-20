@@ -32,14 +32,23 @@ class StateEncoder(nn.Module):
 
 
 class FactorizedConditionEncoder(nn.Module):
-    """Each failure factor gets its own embedding; independently dropped to a
-    learnable null-token during training so the model must learn each
-    factor's effect separately, then compose them (additive sum) at test time
-    -- including for factor combinations never jointly seen in training."""
+    """Each failure factor gets its own small nonlinear MLP (not just a linear
+    projection), independently dropped to a learnable null-token during
+    training so the model must learn each factor's effect separately, then
+    compose them (additive sum) at test time -- including for factor
+    combinations never jointly seen in training. The nonlinear per-factor MLP
+    plus strictly additive composition makes this a generalized-additive-model
+    constraint: it can represent an arbitrary nonlinear effect for each factor
+    individually, but structurally cannot represent a cross-factor
+    interaction term -- unlike MonolithicConditionEncoder, which processes
+    all factors jointly and can fit interactions."""
     def __init__(self, n_factors=4, d_f=D_F, dropout_p=0.2):
         super().__init__()
         self.n_factors = n_factors
-        self.proj = nn.ModuleList([nn.Linear(1, d_f) for _ in range(n_factors)])
+        self.proj = nn.ModuleList([
+            nn.Sequential(nn.Linear(1, d_f), nn.ReLU(), nn.Linear(d_f, d_f))
+            for _ in range(n_factors)
+        ])
         self.null_token = nn.Parameter(torch.zeros(n_factors, d_f))
         self.dropout_p = dropout_p
         self.out_dim = d_f
@@ -57,15 +66,17 @@ class FactorizedConditionEncoder(nn.Module):
 
 
 class MonolithicConditionEncoder(nn.Module):
-    """Baseline: all failure factors concatenated into ONE vector, no per-factor
-    structure and no dropout -- this is what Model B uses."""
+    """Baseline: all failure factors processed jointly through a nonlinear MLP
+    (matched nonlinearity to FactorizedConditionEncoder, so the two encoders
+    differ in whether cross-factor interactions are representable, not in
+    whether either one is linear) -- this is what Model B uses."""
     def __init__(self, n_factors=4, d_c=D_C_MONO):
         super().__init__()
-        self.proj = nn.Linear(n_factors, d_c)
+        self.net = nn.Sequential(nn.Linear(n_factors, d_c), nn.ReLU(), nn.Linear(d_c, d_c))
         self.out_dim = d_c
 
     def forward(self, C, training=True):
-        return self.proj(C)
+        return self.net(C)
 
 
 def timestep_embedding(t, dim):

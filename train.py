@@ -21,13 +21,28 @@ def load_split(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["A", "B", "C"], required=True)
+    ap.add_argument("--model", choices=["A", "B", "C", "D"], required=True,
+                    help="A=MLP baseline, B=monolithic diffusion, C=factorized diffusion (ours), "
+                         "D=factorized diffusion with dropout_p forced to 0 (ablation: factorization "
+                         "without the factor-dropout trick)")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--batch_size", type=int, default=64)
     ap.add_argument("--dropout_p", type=float, default=0.2)   # factor-dropout prob (Model C only)
     ap.add_argument("--T", type=int, default=100)              # diffusion timesteps (B, C)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out_tag", default=None,
+                    help="explicit tag overriding results/model_{model}_seed{seed}.pt -> "
+                         "results/model_{model}_{out_tag}.pt; used by orchestration scripts "
+                         "(sweeps, size experiments) so checkpoints never share a path across "
+                         "runs that differ by more than just seed")
     args = ap.parse_args()
+
+    if args.model == "D":
+        args.dropout_p = 0.0  # ablation: factorization without the factor-dropout trick
+
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
 
     device = get_device()
     print("Device:", device)
@@ -42,7 +57,7 @@ def main():
         model = MLPBaseline(D_STATE, N_UAV, 4, D_OUT).to(device)
         params = list(model.parameters())
     else:
-        if args.model == "C":
+        if args.model in ("C", "D"):
             cond_enc = FactorizedConditionEncoder(dropout_p=args.dropout_p).to(device)
         else:  # B
             cond_enc = MonolithicConditionEncoder().to(device)
@@ -94,10 +109,12 @@ def main():
         ckpt["state_enc"] = state_enc.state_dict()
         ckpt["cond_enc"] = cond_enc.state_dict()
         ckpt["denoiser"] = denoiser.state_dict()
-    torch.save(ckpt, os.path.join("results", f"model_{args.model}.pt"))
-    with open(os.path.join("results", f"history_{args.model}.json"), "w") as f:
+    tag = args.out_tag or f"seed{args.seed}"
+    ckpt_path = os.path.join("results", f"model_{args.model}_{tag}.pt")
+    torch.save(ckpt, ckpt_path)
+    with open(os.path.join("results", f"history_{args.model}_{tag}.json"), "w") as f:
         json.dump(history, f)
-    print(f"Saved -> results/model_{args.model}.pt")
+    print(f"Saved -> {ckpt_path}")
 
 if __name__ == "__main__":
     main()
